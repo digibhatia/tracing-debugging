@@ -1,0 +1,19 @@
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    ports:
+      - "16686:16686"   # Jaeger UI -> http://localhost:16686
+      - "4317"          # OTLP gRPC (internal, from collector)
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC -> this is OTEL_EXPORTER_OTLP_ENDPOINT
+      - "4318:4318"   # OTLP HTTP
+    depends_on:
+      - jaeger

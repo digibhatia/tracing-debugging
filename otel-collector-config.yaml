@@ -1,0 +1,40 @@
+# OpenTelemetry Collector config: receive OTLP from app.py, batch it, and
+# export to Jaeger (traces) plus a debug console log (so you can see spans
+# arriving even before you open the Jaeger UI).
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 50
+  # Belt-and-braces redaction at the Collector layer, IN ADDITION TO the
+  # redaction already done in genai_conventions.safe_prompt_attribute before
+  # a span is even created. Two layers because app code mistakes happen -
+  # the Collector should not be the only thing standing between a bug and a
+  # customer email landing in your trace backend.
+  attributes/redact_pii:
+    actions:
+      - key: gen_ai.prompt.last_user_message
+        action: hash
+
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, attributes/redact_pii]
+      exporters: [otlp/jaeger, debug]
